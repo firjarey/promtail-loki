@@ -1,0 +1,44 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    external_labels:
+      host: docker
+
+scrape_configs:
+  - job_name: container
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost  # Required but not used
+        labels:
+          job: docker-logs
+
+    pipeline_stages:
+      - docker: {}
+
+    # Get logs from container logs directory
+    relabel_configs:
+      - source_labels: [__path__]
+        target_label: container_name
+        replacement: $1
+
+    # Configure path for Docker logs (adjust if your logs are elsewhere)
+    #entry_parser: docker
+    journal:
+      path: /var/lib/docker/containers/
+      labels:
+        job: docker-logs
